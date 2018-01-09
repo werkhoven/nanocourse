@@ -15,7 +15,7 @@
 Servo servoLeft;      // Declare servo objects
 Servo servoRight;
 
-int spin_time = 2100;   // Time to spin the robot in ms, 
+int spin_time = 2385;   // Time to spin the robot in ms, 
 
 
 void setup() {
@@ -23,7 +23,7 @@ void setup() {
 
   servoLeft.attach(13);          // Attach left signal to pin 13
   servoRight.attach(12);         // Attach right signal to pin 12
-  delay(500);                    // Pause 500ms
+  delay(1500);                    // Pause 500ms
 
   maneuver('r');                 // Initiate right turn with maneuver function (see below for more details)      
   delay(spin_time);              // Pause spin_time ms
