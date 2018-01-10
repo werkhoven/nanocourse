@@ -15,15 +15,13 @@ Servo servoRight;
 
 // pin assignments
 int whiskerPin=7;
-int F_irLED=6;
-int R_irLED=5;
-int R_irSensor=3;
-int L_irSensor=9;
+int R_LED=3;
+int L_LED=10;
 int speakerPin = 11;
 byte whisker = 1;
-bool findAngle = false;
+boolean findAngle = false;
 long tTest[2];
-byte man_ct = 0;
+int man_ct = 0;
 long ang2ms = 2385/360;
 
 
@@ -36,8 +34,8 @@ float bottomThresh=1.1;                                   // threshold for detec
 char dir = 'f';             // direction of the maneuver (initialized to forward)
 char prev_dir = 's';        // direction of the previous maneuver (initialized to stop)
 long manDur = 800;          // duration of the current maneuver 
-long minDur = 500;
-long boutLength = 5000;     // maximum length of forward run
+long minDur = 700;
+long boutLength = 2000;     // maximum length of forward run
 long fullSpin = 2190;       // duration of a full 360 degree spin (determined emperically)
 long smallSweep = 450;      // small angle correction sweep
 
@@ -74,10 +72,10 @@ void setup() {
 
   // configure pins
   pinMode(whiskerPin, INPUT);                         // Set whisker pin to input
-  pinMode(L_irSensor, INPUT);
-  pinMode(R_irSensor, INPUT);
-  pinMode(F_irLED, INPUT);
-  pinMode(R_irLED, INPUT);
+  pinMode(R_LED, OUTPUT);
+  pinMode(L_LED, OUTPUT);
+  digitalWrite(R_LED,LOW);
+  digitalWrite(L_LED,LOW);
   servoLeft.attach(13);                      // Attach left signal to pin 13
   servoRight.attach(12);                     // Attach right signal to pin 12
 
@@ -110,7 +108,6 @@ void loop() {
   tCurrent=micros();                        // timestamp in microseconds
   tElapsed=tCurrent-tPrevious+tElapsed;
   tPrevious=tCurrent;
-  Serial.println(man_ct);
   
 
   // ****************************************************************** //
@@ -132,9 +129,12 @@ void loop() {
         
         if(findAngle){
           tTest[man_ct] = tElapsed;
+          man_ct++;
           manDur = tElapsed/1000;
         }
         else{
+          digitalWrite(R_LED,LOW);
+          digitalWrite(L_LED,LOW);
           findAngle = true;
           manDur = minDur;
           man_ct = 0;
@@ -149,7 +149,7 @@ void loop() {
       tPrevious=micros();                        // Grab a new timestamp and reset the maneuver clock
       tElapsed=0;
 
-      tone(speakerPin,3500,150);
+      //tone(speakerPin,3500,150);
   }
 
 
@@ -186,50 +186,60 @@ void loop() {
 
   // assign a new maneuver if the maneuver duration is exceeded
    if ( tElapsed > manDur*1000 ){
-
+    
+    Serial.println("TIME ELAPSED");
     // previous maneuver was FORWARD
     if( prev_dir == 'f' ){
       
       findAngle = false;
+      dir = 'f';
+      manDur = boutLength;
+      tElapsed = 0;
+      tPrevious = micros();
       //man_ct = 0;
         
     }
-
-    // previous maneuver was BACKWARD
-    if( prev_dir == 'b' ){
+    else if( prev_dir == 'b' ){
       
       if(findAngle){
         switch(man_ct){
           
           case 0: 
             dir = 'r';
-            manDur = 20*ang2ms;
+            manDur = 35*ang2ms;
+            //Serial.print("PROBING RIGHT: ");
             break;
             
           case 1: 
             dir = 'l';
-            manDur = 40*ang2ms;
+            manDur = 70*ang2ms;
+            //Serial.println(tTest[0]/1000,DEC);
+            //Serial.print("PROBING LEFT: ");
             break;
             
           case 2:
+            //Serial.println(tTest[1]/1000,DEC);
             findAngle = false;
-            Serial.print("Right: ");
-            Serial.println(tTest[0]);
-            Serial.print("Left: ");
-            Serial.println(tTest[1]);
+            man_ct = 0;
             if(tTest[0]>tTest[1]){
+              //Serial.println("CHOOSING RIGHT");
+              digitalWrite(R_LED,HIGH);
               dir = 'r';
-              manDur = 40*ang2ms + 25*ang2ms;
-              Serial.println("RIGHT");
+              manDur = 70*ang2ms + 30*ang2ms;
             }
             else{
               dir='l';
               manDur = 25*ang2ms;
-              Serial.println("LEFT");
+              //Serial.println("CHOOSING LEFT");
+              digitalWrite(L_LED,HIGH);
             }
+            //Serial.println("");
             break;
+          default:
+            man_ct = 0;
+            tElapsed = 0;
+            tPrevious = micros();
         }      
-        man_ct++;
       } 
       else{
         dir = randDir();                         // randomly choose a left-right direction
@@ -238,7 +248,6 @@ void loop() {
       }
       
     }
-
     // previous maneuver was a TURN
     else if( prev_dir == 'r' || prev_dir == 'l' ){
 
@@ -251,15 +260,13 @@ void loop() {
 
   // execute maneuver if direction assignment has changed
   if( dir != prev_dir ){
-/*
+    
     Serial.print("MAN: ");                   // print the direction and it's duration to the serial monitor if the direction changes
     Serial.println(dir);
     Serial.print("DUR: ");
     Serial.println(manDur);
     Serial.println(" ");
-    Serial.println(man_ct);
-    */
-    
+      
     maneuver('s');                             // stop the servos before initiating new command
     maneuver(dir);                             // execute new maneuver
     prev_dir = dir;                            // set previous direction to the direction of the new maneuver
@@ -267,7 +274,6 @@ void loop() {
     tElapsed=0;                                // Re-initialize timer to 0
     
   }
-
 
 }
 
