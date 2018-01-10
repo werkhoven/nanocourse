@@ -21,6 +21,7 @@ void setup() {
 void loop() {
   // put your main code here, to run repeatedly:
 
+  ct++;
   float sensor_value = volts(A0);               // call our function (defined below) to read the current value on the sensor and store in local float named sensor_value
   Serial.println(sensor_value,DEC);             // print the sensor value to the serial port, specifying the print mode as decimal to prevent value from being truncated
 

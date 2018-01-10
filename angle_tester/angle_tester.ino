@@ -23,19 +23,29 @@ boolean findAngle = false;
 long tTest[2];
 int man_ct = 0;
 long ang2ms = 2385/360;
+long angSweep = 25;
+long ct = 0;
+long samplefreq = 500;
+byte lum_ct = 0;
+float lum[20];
+
+
 
 
 // border detection variables
 float bottomDetector=0;                                   // current value on the phototransistor                   
-float bottomThresh=1.1;                                   // threshold for detection
+float bottomThresh=0;                                   // threshold for detection
+float threshMultiplier = 1.2;
+int borderScore = 0;
+int borderThresh = 1;
 
 
 // maneuver variables
 char dir = 'f';             // direction of the maneuver (initialized to forward)
 char prev_dir = 's';        // direction of the previous maneuver (initialized to stop)
 long manDur = 800;          // duration of the current maneuver 
-long minDur = 700;
-long boutLength = 2000;     // maximum length of forward run
+long minDur = 500;
+long boutLength = minDur * 3;     // maximum length of forward run
 long fullSpin = 2190;       // duration of a full 360 degree spin (determined emperically)
 long smallSweep = 450;      // small angle correction sweep
 
@@ -84,7 +94,10 @@ void setup() {
 
   // initialize luminance threshold
   bottomDetector=volts(A0);
-  bottomThresh = bottomDetector * 1.5;
+  bottomThresh = bottomDetector * threshMultiplier;
+  for(int i=0; i<sizeof(lum)/sizeof(float); i++){
+    lum[i] = bottomDetector;
+  }
 
 
   // Take first time stamp
@@ -108,6 +121,7 @@ void loop() {
   tCurrent=micros();                        // timestamp in microseconds
   tElapsed=tCurrent-tPrevious+tElapsed;
   tPrevious=tCurrent;
+  ct++;
   
 
   // ****************************************************************** //
@@ -120,8 +134,30 @@ void loop() {
   // read from the phototransitor
   bottomDetector = volts(A0);
 
+  if(bottomDetector > bottomThresh ){
+    borderScore = borderScore + 2;
+  }
+  else if(borderScore > 0){
+    borderScore = borderScore - 1;
+  }
+
+  if(ct%samplefreq == 0){
+    
+    lum[lum_ct] = bottomDetector;
+    if(lum_ct<(sizeof(lum)/sizeof(float))-1){lum_ct++;}
+    else{lum_ct=0;}
+
+    float lum_sum=0;
+    for(int i=0; i<(sizeof(lum)/sizeof(float)); i++){
+      lum_sum = lum_sum + lum[i];
+    }
+    bottomThresh = lum_sum / (sizeof(lum)/sizeof(float)) * threshMultiplier;
+  }
+
   // reorient if photosensor value exceeds threshold or whisker press is detected
-  if((bottomDetector > bottomThresh || !whisker ) && tElapsed > minDur*1000){  
+  if((borderScore > borderThresh || !whisker ) && tElapsed > minDur*1000){  
+
+      borderScore = 0;
 
       if(dir=='f'){
         
@@ -149,20 +185,17 @@ void loop() {
       tPrevious=micros();                        // Grab a new timestamp and reset the maneuver clock
       tElapsed=0;
 
-      //tone(speakerPin,3500,150);
+      tone(speakerPin,2500,150);
   }
 
 
   // play warning if phototransitor is saturated
-  if( bottomThresh > 5){
+  if(bottomThresh > 5){
     bottomThresh = 5;
-    tone(speakerPin,3500,300);
-    delay(300);
-    tone(speakerPin,2500,300);
-    delay(300);
-    tone(speakerPin,3500,300);
-    delay(300);
-    tone(speakerPin,2500,300);
+    tone(speakerPin,2500,150);
+    delay(150);
+    tone(speakerPin,1000,150);
+    delay(150);
   }
 
 
@@ -186,8 +219,7 @@ void loop() {
 
   // assign a new maneuver if the maneuver duration is exceeded
    if ( tElapsed > manDur*1000 ){
-    
-    Serial.println("TIME ELAPSED");
+   
     // previous maneuver was FORWARD
     if( prev_dir == 'f' ){
       
@@ -206,13 +238,13 @@ void loop() {
           
           case 0: 
             dir = 'r';
-            manDur = 35*ang2ms;
+            manDur = angSweep*ang2ms;
             //Serial.print("PROBING RIGHT: ");
             break;
             
           case 1: 
             dir = 'l';
-            manDur = 70*ang2ms;
+            manDur = 2*angSweep*ang2ms;
             //Serial.println(tTest[0]/1000,DEC);
             //Serial.print("PROBING LEFT: ");
             break;
@@ -225,11 +257,11 @@ void loop() {
               //Serial.println("CHOOSING RIGHT");
               digitalWrite(R_LED,HIGH);
               dir = 'r';
-              manDur = 70*ang2ms + 30*ang2ms;
+              manDur = angSweep*ang2ms + 60*ang2ms;
             }
             else{
               dir='l';
-              manDur = 25*ang2ms;
+              manDur = angSweep*ang2ms + 60*ang2ms;
               //Serial.println("CHOOSING LEFT");
               digitalWrite(L_LED,HIGH);
             }
@@ -260,13 +292,13 @@ void loop() {
 
   // execute maneuver if direction assignment has changed
   if( dir != prev_dir ){
-    
+    /*
     Serial.print("MAN: ");                   // print the direction and it's duration to the serial monitor if the direction changes
     Serial.println(dir);
     Serial.print("DUR: ");
     Serial.println(manDur);
     Serial.println(" ");
-      
+   */
     maneuver('s');                             // stop the servos before initiating new command
     maneuver(dir);                             // execute new maneuver
     prev_dir = dir;                            // set previous direction to the direction of the new maneuver
